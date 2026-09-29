@@ -1,0 +1,324 @@
+# Knowledge: Batching va Processing trong Document Extraction Project
+
+Tai lieu nay giai thich cach them hai lop xu ly vao project hien tai:
+
+- **Processing**: xu ly mot tai lieu tu luc nhan file den luc tao ra raw text va chunks.
+- **Batching**: gom nhieu tai lieu vao mot batch, dieu phoi viec xu ly tung tai lieu, theo doi ket qua va loi.
+
+## So do tong quan
+
+Mo hinh truc quan cua hai flow nam trong [knowledge-flow.svg](knowledge-flow.svg).
+
+## 1. Trang thai hien tai cua project
+
+Luot xu ly hien tai nam trong `app/pipelines/extraction_pipeline.py`:
+
+1. Lay extension cua file.
+2. Chon extractor tuong ung: PDF, image, TXT, Markdown, CSV hoac Excel.
+3. Tao `raw_text`.
+4. Chia text thanh cac chunk bang `ChunkService.split_text()`.
+5. Tra ve `file_name`, `raw_text` va `chunks`.
+
+`app/workers/batch_worker.py` da co `BatchWorker` de xu ly danh sach file theo cac nhom `batch_size`, goi lai pipeline hien co cho tung file, retry co gioi han va tong hop ket qua thanh cong/that bai. Worker xu ly tuan tu va chua duoc noi vao API hoac `main.py`, nen luong dang chay mac dinh van goi truc tiep `ExtractionPipeline().process(file_path)` cho mot file.
+
+### Mo hinh hien tai
+
+```mermaid
+flowchart LR
+    A[Mot file trong uploads] --> B[ExtractionPipeline.process]
+    B --> C{Chon extractor theo extension}
+    C --> D[raw_text]
+    D --> E[ChunkService.split_text]
+    E --> F[Ket qua mot tai lieu]
+```
+
+## 2. Processing la gi?
+
+Processing la pipeline xu ly **mot document**. Day la don vi co trach nhiem ro rang nhat trong he thong: nhan vao mot `file_path`, tra ve ket qua cua mot file hoac loi cua file do.
+
+### Processing flow theo project hien tai
+
+```mermaid
+flowchart TD
+    A[Input: file_path] --> B[Kiem tra file ton tai va extension]
+    B --> C{Extension duoc ho tro?}
+    C -- Khong --> X[Tra loi Unsupported file]
+    C -- Co --> D{Loai file}
+    D -- PDF --> E[PdfExtractor]
+    D -- JPG PNG TIFF --> F[ImageExtractor + OCR]
+    D -- TXT --> G[TxtExtractor]
+    D -- MD --> H[MdExtractor]
+    D -- CSV --> I[CsvExtractor]
+    D -- XLSX --> J[ExcelExtractor]
+    E --> K[raw_text]
+    F --> K
+    G --> K
+    H --> K
+    I --> K
+    J --> K
+    K --> L[MetadataService, tuy chon]
+    L --> M[ClassifierService, tuy chon]
+    M --> N[ChunkService.split_text]
+    N --> O[ExtractedDocument result]
+```
+
+### Cac buoc processing nen co trong phien ban tiep theo
+
+1. **Validate input**: file co ton tai, co doc duoc va co extension trong allow-list.
+2. **Extract**: chon extractor va lay text.
+3. **Normalize**: chuan hoa whitespace, encoding va text rong neu can.
+4. **Enrich**: goi `MetadataService` va `ClassifierService` khi hai service nay duoc bat lai.
+5. **Chunk**: goi `ChunkService`; co the cho phep `chunk_size` tu config.
+6. **Persist result**: luu output kem status, error va timestamp.
+
+Processing khong nen biet batch dang chay nhu the nao. Batch worker chi can goi processing va thu thap ket qua.
+
+## 3. Batching la gi?
+
+Batching la cach xu ly mot danh sach document theo nhom thay vi xu ly tung file mot cach roi rac.
+
+Vi du:
+
+```text
+Danh sach 10 file
+batch_size = 3
+
+Batch 1: file 1, file 2, file 3
+Batch 2: file 4, file 5, file 6
+Batch 3: file 7, file 8, file 9
+Batch 4: file 10
+```
+
+Batching mang lai cac loi ich sau:
+
+- Gioi han so file xu ly dong thoi.
+- Tranh viec OCR hoac PDF extraction chiem het CPU/RAM.
+- De theo doi tien do theo batch.
+- De retry nhung file loi ma khong phai chay lai toan bo danh sach.
+- Co the them queue, worker va xu ly bat dong bo sau nay.
+
+Batch khong co nghia la tron noi dung cua nhieu file vao mot chuoi text. Moi file van phai co ket qua, status va loi rieng.
+
+## 4. Batching flow de xuat cho project nay
+
+```mermaid
+flowchart TD
+    A[Danh sach file trong uploads] --> B[BatchWorker nhan job]
+    B --> C[Validate va loc file hop le]
+    C --> D[Chia danh sach theo batch_size]
+    D --> E{Con batch chua xu ly?}
+    E -- Co --> F[Lay batch tiep theo]
+    F --> G[For tung file trong batch]
+    G --> H[ExtractionPipeline.process file]
+    H --> I{File thanh cong?}
+    I -- Co --> J[Luu result status=completed]
+    I -- Khong --> K[Luu error status=failed]
+    J --> L{Con file trong batch?}
+    K --> L
+    L -- Co --> G
+    L -- Khong --> M[Cap nhat tien do batch]
+    M --> E
+    E -- Khong --> N[Tong hop batch result]
+    N --> O[Luu report completed/failed]
+```
+
+### Trach nhiem cua `BatchWorker`
+
+`BatchWorker` nen lam cac viec sau:
+
+- Nhan danh sach `file_paths`.
+- Chia danh sach theo `batch_size`.
+- Goi `ExtractionPipeline.process()` cho tung file.
+- Bat exception theo tung file, khong de mot file lam dung ca batch.
+- Tra ve `succeeded`, `failed`, `total`, `results` va `errors`.
+- Co the retry theo file voi so lan gioi han.
+
+`BatchWorker` khong nen tu chon extractor va khong nen copy logic cua `ExtractionPipeline`.
+
+## 5. Pseudocode cua batch worker
+
+Day la thiet ke de hoc va co the chuyen thanh code Python sau nay:
+
+```python
+class BatchWorker:
+    def __init__(self, pipeline, batch_size=10, max_retries=1):
+        self.pipeline = pipeline
+        self.batch_size = batch_size
+        self.max_retries = max_retries
+
+    def run(self, file_paths):
+        report = {
+            "total": len(file_paths),
+            "succeeded": 0,
+            "failed": 0,
+            "results": [],
+            "errors": [],
+        }
+
+        for batch in self._split_batches(file_paths):
+            for file_path in batch:
+                result = self._process_with_retry(file_path)
+
+                if result["status"] == "completed":
+                    report["succeeded"] += 1
+                    report["results"].append(result)
+                else:
+                    report["failed"] += 1
+                    report["errors"].append(result)
+
+        return report
+```
+
+Mot y tuong quan trong: `status` phai gan voi tung file. Khong nen chi tra ve mot boolean cua ca batch vi se mat thong tin file nao that bai.
+
+## 6. Mau ket qua nen huong toi
+
+### Ket qua mot file
+
+```json
+{
+  "file_name": "invoice-001.pdf",
+  "status": "completed",
+  "attempt": 1,
+  "raw_text": "...",
+  "chunks": [
+    {
+      "chunk_id": 1,
+      "content": "..."
+    }
+  ],
+  "error": null
+}
+```
+
+### Ket qua mot batch
+
+```json
+{
+  "batch_id": "batch-001",
+  "status": "completed_with_errors",
+  "total": 3,
+  "succeeded": 2,
+  "failed": 1,
+  "results": [
+    {"file_name": "a.pdf", "status": "completed"},
+    {"file_name": "b.png", "status": "completed"}
+  ],
+  "errors": [
+    {
+      "file_name": "c.xyz",
+      "status": "failed",
+      "error_type": "UnsupportedFileError",
+      "message": "Unsupported file"
+    }
+  ]
+}
+```
+
+## 7. Sequential hay parallel?
+
+### Bat dau bang sequential
+
+```text
+for file_path in batch:
+    pipeline.process(file_path)
+```
+
+Day la lua chon phu hop cho phien ban dau vi:
+
+- De debug.
+- De kiem soat RAM, dac biet voi EasyOCR.
+- De biet loi xuat phat tu file nao.
+- Khong can quan ly process/thread ngay tu dau.
+
+### Khi nao dung parallel?
+
+Chi nen them `ThreadPoolExecutor` hoac `ProcessPoolExecutor` sau khi do duoc:
+
+- Thoi gian xu ly trung binh cua tung extractor.
+- CPU va RAM khi OCR nhieu file.
+- So worker toi da ma container chiu duoc.
+
+Voi OCR, parallel qua nhieu worker co the lam cham toan he thong hoac het RAM. Co the bat dau voi `max_workers=2`, sau do benchmark.
+
+## 8. Retry, idempotency va loi
+
+### Retry
+
+Chi retry loi tam thoi, vi du file dang bi lock hoac loi I/O. Khong nen retry vo han loi `Unsupported file`.
+
+```text
+UnsupportedFileError -> failed ngay
+FileNotFoundError    -> failed hoac dua vao dead-letter report
+I/O transient error  -> retry toi da max_retries
+OCR exception        -> retry co gioi han, sau do failed
+```
+
+### Idempotency
+
+Neu cung mot file duoc dua vao batch hai lan, he thong nen co cach nhan dien de tranh ghi ket qua sai. Co the dung:
+
+- `file_path` + modification time.
+- SHA-256 cua file.
+- `document_id` duoc tao tu hash.
+
+### Bao toan ket qua
+
+Moi file can duoc cap nhat ket qua ngay sau khi xu ly xong. Khong nen doi toan bo batch ket thuc moi ghi, vi neu worker bi crash thi se mat cac ket qua da thanh cong.
+
+## 9. Lo trinh implement de xuat
+
+1. Hoan thien validate trong `ExtractionPipeline`.
+2. Tao exception rieng: `UnsupportedFileError`, `ExtractionError`.
+3. Implement `BatchWorker` theo sequential processing.
+4. Tao schema ket qua cho file va batch bang Pydantic.
+5. Luu output theo `batch_id` va `document_id`.
+6. Them retry co gioi han va error report.
+7. Them API nhan nhieu file va tra ve `batch_id`.
+8. Sau cung moi them queue hoac parallel worker.
+
+## 10. Cac bai tap de hoc
+
+### Bai 1: Batch co ban
+
+Viet ham `_split_batches(items, batch_size)` va test voi cac truong hop:
+
+- Danh sach rong.
+- Nho hon `batch_size`.
+- Chia het cho `batch_size`.
+- Batch cuoi it hon cac batch truoc.
+- `batch_size <= 0`.
+
+### Bai 2: Per-file error isolation
+
+Cho mot file loi giua batch, chung minh hai file con lai van duoc xu ly va report co `failed=1`.
+
+### Bai 3: Retry
+
+Gia lap mot extractor loi lan dau nhung thanh cong lan hai. Kiem tra `attempt=2` va status cuoi la `completed`.
+
+### Bai 4: Progress
+
+Sau moi file, tinh:
+
+```text
+progress_percent = processed / total * 100
+```
+
+Khong lam tron progress de du lieu backend va UI thong nhat.
+
+## 11. Checklist khi code that
+
+- [ ] `BatchWorker` chi dieu phoi, khong lap lai extractor logic.
+- [ ] Moi file co status rieng.
+- [ ] Mot file loi khong dung ca batch.
+- [ ] Retry co gioi han va phan biet loi retry duoc.
+- [ ] Co `batch_id` va document identifier on dinh.
+- [ ] Ket qua duoc luu tung file khi hoan thanh.
+- [ ] Co log ten file, batch id, attempt va thoi gian xu ly.
+- [ ] Co test cho empty input, unsupported file, extractor error va retry.
+- [ ] Chua parallel hoa truoc khi do RAM/CPU cua OCR.
+
+## Ket luan
+
+Trong project hien tai, `ExtractionPipeline` la lop **processing mot document**. `BatchWorker` la lop **batching nhieu document** va nen nam o phia tren pipeline. Tach hai trach nhiem nay giup code de test, de retry, de mo rong thanh queue/worker sau nay, trong khi van giu nguyen cac extractor dang co.

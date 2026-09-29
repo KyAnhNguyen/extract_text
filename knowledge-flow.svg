@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Batching va Processing flow</title>
+  <desc id="desc">So do xu ly mot tai lieu bang ExtractionPipeline va dieu phoi nhieu tai lieu bang BatchWorker.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7fafc"/>
+      <stop offset="100%" stop-color="#edf4f2"/>
+    </linearGradient>
+    <linearGradient id="batchPanel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e8f3f1"/>
+      <stop offset="100%" stop-color="#d7ebe8"/>
+    </linearGradient>
+    <linearGradient id="processPanel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7eee4"/>
+      <stop offset="100%" stop-color="#f3e2d1"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#173042" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#315c68"/>
+    </marker>
+    <marker id="arrowLight" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#78949a"/>
+    </marker>
+    <style>
+      .title { font: 700 34px sans-serif; fill: #173042; }
+      .subtitle { font: 400 17px sans-serif; fill: #54707a; }
+      .panel-title { font: 700 24px sans-serif; fill: #173042; }
+      .panel-subtitle { font: 400 15px sans-serif; fill: #54707a; }
+      .node-title { font: 700 17px sans-serif; fill: #173042; }
+      .node-text { font: 400 14px sans-serif; fill: #48616b; }
+      .small { font: 600 13px sans-serif; fill: #54707a; }
+      .decision { font: 700 15px sans-serif; fill: #173042; }
+      .line { stroke: #315c68; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .line-light { stroke: #78949a; stroke-width: 2; fill: none; marker-end: url(#arrowLight); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1000" fill="url(#background)"/>
+  <text x="80" y="70" class="title">Document Extraction Project</text>
+  <text x="80" y="103" class="subtitle">Batching dieu phoi nhieu file; Processing xu ly tung file doc lap</text>
+
+  <rect x="60" y="140" width="1480" height="275" rx="22" fill="url(#batchPanel)" stroke="#a9cfca" stroke-width="2"/>
+  <text x="95" y="185" class="panel-title">1. BATCHING FLOW</text>
+  <text x="95" y="213" class="panel-subtitle">BatchWorker quan ly batch_size, tien do, retry va ket qua rieng cua tung file</text>
+
+  <g filter="url(#shadow)">
+    <rect x="95" y="260" width="190" height="82" rx="12" fill="#ffffff"/>
+    <text x="190" y="292" text-anchor="middle" class="node-title">uploads/</text>
+    <text x="190" y="317" text-anchor="middle" class="node-text">Danh sach file</text>
+
+    <rect x="345" y="260" width="205" height="82" rx="12" fill="#ffffff"/>
+    <text x="447" y="292" text-anchor="middle" class="node-title">BatchWorker</text>
+    <text x="447" y="317" text-anchor="middle" class="node-text">Nhan batch job</text>
+
+    <rect x="610" y="260" width="205" height="82" rx="12" fill="#ffffff"/>
+    <text x="712" y="292" text-anchor="middle" class="node-title">Validate files</text>
+    <text x="712" y="317" text-anchor="middle" class="node-text">Loc file hop le</text>
+
+    <rect x="875" y="260" width="205" height="82" rx="12" fill="#ffffff"/>
+    <text x="977" y="292" text-anchor="middle" class="node-title">Split batches</text>
+    <text x="977" y="317" text-anchor="middle" class="node-text">batch_size = N</text>
+
+    <rect x="1140" y="260" width="205" height="82" rx="12" fill="#ffffff"/>
+    <text x="1242" y="292" text-anchor="middle" class="node-title">Process each file</text>
+    <text x="1242" y="317" text-anchor="middle" class="node-text">Goi ExtractionPipeline</text>
+  </g>
+  <path d="M285 301 H345" class="line"/>
+  <path d="M550 301 H610" class="line"/>
+  <path d="M815 301 H875" class="line"/>
+  <path d="M1080 301 H1140" class="line"/>
+  <path d="M1242 342 V376 H447 V342" class="line-light"/>
+  <text x="824" y="389" text-anchor="middle" class="small">lap lai den khi het file trong batch</text>
+
+  <rect x="60" y="455" width="1480" height="465" rx="22" fill="url(#processPanel)" stroke="#e1c4a8" stroke-width="2"/>
+  <text x="95" y="500" class="panel-title">2. PROCESSING FLOW</text>
+  <text x="95" y="528" class="panel-subtitle">ExtractionPipeline xu ly mot file tu input den raw_text, metadata va chunks</text>
+
+  <g filter="url(#shadow)">
+    <rect x="95" y="590" width="190" height="82" rx="12" fill="#ffffff"/>
+    <text x="190" y="622" text-anchor="middle" class="node-title">file_path</text>
+    <text x="190" y="647" text-anchor="middle" class="node-text">Mot document</text>
+
+    <rect x="345" y="590" width="210" height="82" rx="12" fill="#ffffff"/>
+    <text x="450" y="622" text-anchor="middle" class="node-title">Check extension</text>
+    <text x="450" y="647" text-anchor="middle" class="node-text">PDF, image, TXT...</text>
+
+    <rect x="615" y="590" width="220" height="82" rx="12" fill="#ffffff"/>
+    <text x="725" y="622" text-anchor="middle" class="node-title">Select extractor</text>
+    <text x="725" y="647" text-anchor="middle" class="node-text">Pdf / OCR / Excel...</text>
+
+    <rect x="895" y="590" width="190" height="82" rx="12" fill="#ffffff"/>
+    <text x="990" y="622" text-anchor="middle" class="node-title">raw_text</text>
+    <text x="990" y="647" text-anchor="middle" class="node-text">Text da extract</text>
+
+    <rect x="1145" y="590" width="205" height="82" rx="12" fill="#ffffff"/>
+    <text x="1247" y="622" text-anchor="middle" class="node-title">Enrich (optional)</text>
+    <text x="1247" y="647" text-anchor="middle" class="node-text">Metadata + classifier</text>
+
+    <rect x="615" y="775" width="220" height="82" rx="12" fill="#ffffff"/>
+    <text x="725" y="807" text-anchor="middle" class="node-title">ChunkService</text>
+    <text x="725" y="832" text-anchor="middle" class="node-text">split_text()</text>
+
+    <rect x="895" y="775" width="190" height="82" rx="12" fill="#ffffff"/>
+    <text x="990" y="807" text-anchor="middle" class="node-title">Document result</text>
+    <text x="990" y="832" text-anchor="middle" class="node-text">raw_text + chunks</text>
+
+    <rect x="1145" y="775" width="205" height="82" rx="12" fill="#ffffff"/>
+    <text x="1247" y="807" text-anchor="middle" class="node-title">Save status</text>
+    <text x="1247" y="832" text-anchor="middle" class="node-text">completed / failed</text>
+  </g>
+
+  <path d="M285 631 H345" class="line"/>
+  <path d="M555 631 H615" class="line"/>
+  <path d="M835 631 H895" class="line"/>
+  <path d="M1085 631 H1145" class="line"/>
+  <path d="M1247 672 V735 H725 V775" class="line"/>
+  <path d="M835 816 H895" class="line"/>
+  <path d="M1085 816 H1145" class="line"/>
+
+  <rect x="95" y="710" width="405" height="125" rx="14" fill="#fff8f1" stroke="#ddb38e" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="120" y="743" class="decision">Neu khong ho tro</text>
+  <text x="120" y="770" class="node-text">Tra loi Unsupported file</text>
+  <text x="120" y="796" class="node-text">Batch ghi status = failed</text>
+  <path d="M450 672 V710" class="line-light"/>
+
+  <text x="800" y="887" text-anchor="middle" class="small">BatchWorker nhan ket qua nay va tiep tuc file ke tiep</text>
+</svg>

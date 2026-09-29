@@ -1,0 +1,10 @@
+{
+  "file_name": "Document.pdf",
+  "raw_text": "INVOICE \nInvoice Number: INV001 \nDate: 2026-09-24 \nCustomer: \nABC Company Ltd. \nItem: \nLaptop Dell Latitude \nQuantity: 2 \nUnit Price: 1000 USD \nTotal Amount: 2000 USD \nThank you for your business. \n \n",
+  "chunks": [
+    {
+      "chunk_id": 1,
+      "content": "INVOICE \nInvoice Number: INV001 \nDate: 2026-09-24 \nCustomer: \nABC Company Ltd. \nItem: \nLaptop Dell Latitude \nQuantity: 2 \nUnit Price: 1000 USD \nTotal Amount: 2000 USD \nThank you for your business. \n \n"
+    }
+  ]
+}

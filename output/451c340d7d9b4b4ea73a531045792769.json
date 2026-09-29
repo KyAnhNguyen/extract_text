@@ -1,0 +1,10 @@
+{
+  "file_name": "Slide1.jpg",
+  "raw_text": "INVOICE\nNumber:\nINV2026001\nSeller:\nMicrosoft Corporation\nBuyer:\nSoftware\nFPT\nDescription:\nCloud Subscription\nAzure\nAmount:\n5000\nUSD\nPayment\nMethod:\nBank Transfer",
+  "chunks": [
+    {
+      "chunk_id": 1,
+      "content": "INVOICE\nNumber:\nINV2026001\nSeller:\nMicrosoft Corporation\nBuyer:\nSoftware\nFPT\nDescription:\nCloud Subscription\nAzure\nAmount:\n5000\nUSD\nPayment\nMethod:\nBank Transfer"
+    }
+  ]
+}
